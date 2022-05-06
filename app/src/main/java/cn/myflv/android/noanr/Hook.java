@@ -1,21 +1,19 @@
 package cn.myflv.android.noanr;
 
-import android.util.Log;
-
 import java.lang.reflect.Field;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodReplacement;
+import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 public class Hook implements IXposedHookLoadPackage {
-    private final static String NO_ANR = "NoANR";
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         if (lpparam.packageName.equals("android")) {
-            Log.i(NO_ANR, "Load success");
+            XposedBridge.log("NoANR Load success");
             XposedHelpers.findAndHookMethod("com.android.server.am.AnrHelper", lpparam.classLoader, "appNotResponding",
                     "com.android.server.am.ProcessRecord",
                     String.class,
@@ -26,17 +24,25 @@ public class Hook implements IXposedHookLoadPackage {
                     String.class, new XC_MethodReplacement() {
                         @Override
                         protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
-                            Log.i(NO_ANR, "Hook success");
-                            Object anrHelper = param.thisObject;
-                            Object processRecord = param.args[0];
-                            Field mErrorStateField = XposedHelpers.findField(processRecord.getClass(), "mErrorState");
-                            Object mErrorState = mErrorStateField.get(processRecord);
-                            XposedHelpers.callMethod(mErrorState, "setNotResponding", boolean.class, false);
-                            Field mServiceField = XposedHelpers.findField(anrHelper.getClass(), "mService");
-                            Object mService = mServiceField.get(anrHelper);
-                            Field mServicesField = XposedHelpers.findField(mService.getClass(), "mServices");
-                            Object mServices = mServicesField.get(mService);
-                            XposedHelpers.callMethod(mServices, "scheduleServiceTimeoutLocked", "com.android.server.am.ProcessRecord", processRecord);
+                            try {
+                                Object anrHelper = param.thisObject;
+                                Object processRecord = param.args[0];
+                                if (processRecord == null) return null;
+                                Field mErrorStateField = XposedHelpers.findField(processRecord.getClass(), "mErrorState");
+                                Object mErrorState = mErrorStateField.get(processRecord);
+                                if (mErrorState == null) return null;
+                                XposedHelpers.callMethod(mErrorState, "setNotResponding", false);
+                                Field mServiceField = XposedHelpers.findField(anrHelper.getClass(), "mService");
+                                Object mService = mServiceField.get(anrHelper);
+                                if (mService == null) return null;
+                                Field mServicesField = XposedHelpers.findField(mService.getClass(), "mServices");
+                                Object mServices = mServicesField.get(mService);
+                                if (mServices == null) return null;
+                                XposedHelpers.callMethod(mServices, "scheduleServiceTimeoutLocked", processRecord);
+                                XposedBridge.log("NoANR Hook success");
+                            } catch (Exception e) {
+                                XposedBridge.log("NoANR " + e.getMessage());
+                            }
                             return null;
                         }
                     });
