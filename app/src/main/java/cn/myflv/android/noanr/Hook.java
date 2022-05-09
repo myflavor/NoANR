@@ -1,5 +1,7 @@
 package cn.myflv.android.noanr;
 
+import android.util.Log;
+
 import java.lang.reflect.Field;
 import java.util.List;
 
@@ -12,13 +14,12 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
 public class Hook implements IXposedHookLoadPackage {
 
+    private final static String NO_ANR = "NoANR";
+
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         if (lpparam.packageName.equals("android")) {
-            XposedBridge.log("NoANR Load success");
-            XposedHelpers.findAndHookMethod("com.android.server.am.ActiveServices",lpparam.classLoader,"serviceTimeout","com.android.server.am.ProcessRecord",XC_MethodReplacement.DO_NOTHING);
-            XposedHelpers.findAndHookMethod("com.android.server.am.ActiveServices",lpparam.classLoader,"serviceForegroundTimeout","com.android.server.am.ProcessRecord",XC_MethodReplacement.DO_NOTHING);
-
+            log("Load success");
             XposedHelpers.findAndHookMethod("com.android.server.am.AnrHelper", lpparam.classLoader, "appNotResponding",
                     "com.android.server.am.ProcessRecord",
                     String.class,
@@ -27,66 +28,97 @@ public class Hook implements IXposedHookLoadPackage {
                     "com.android.server.wm.WindowProcessController",
                     boolean.class,
                     String.class, new XC_MethodReplacement() {
-
-                        @SuppressWarnings("unchecked")
                         @Override
                         protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
-                            try {
-                                Object anrHelper = param.thisObject;
-
-                                Object[] args = param.args;
-                                Object proc = param.args[0];
-
-                                Field infoField = XposedHelpers.findField(proc.getClass(), "info");
-                                Object applicationInfo = null;
-                                if (args[2]!=null) applicationInfo=args[2];
-                                if (applicationInfo==null && infoField.get(proc)!=null){
-                                    applicationInfo = infoField.get(proc);
-                                }
-                                if (applicationInfo==null){
-                                    Field mAnrRecordsField = XposedHelpers.findField(anrHelper.getClass(), "mAnrRecords");
-                                    synchronized (mAnrRecordsField.get(anrHelper)){
-                                        List<Object> mAnrRecords = (List<Object>) mAnrRecordsField.get(anrHelper);
-                                        Class<?> AnrRecord = XposedHelpers.findClass("com.android.server.am.AnrHelper$AnrRecord", lpparam.classLoader);
-                                        Object anrRecord = XposedHelpers.newInstance(AnrRecord, args);
-                                        mAnrRecords.add(anrRecord);
-                                    }
-                                    XposedHelpers.callMethod(anrHelper,"startAnrConsumerIfNeeded");
-                                    XposedBridge.log("NoANR Skip process");
-                                    return null;
-                                }
-                                Field flagsField = XposedHelpers.findField(applicationInfo.getClass(), "flags");
-                                int FLAG_SYSTEM = XposedHelpers.getStaticIntField(applicationInfo.getClass(), "FLAG_SYSTEM");
-                                int flags = (int) flagsField.get(applicationInfo);
-                                if ((flags & FLAG_SYSTEM) != 0) return null;
-                                Field mErrorStateField = XposedHelpers.findField(proc.getClass(), "mErrorState");
-                                Object errState = mErrorStateField.get(proc);
-                                if (errState == null) return null;
-                                Field mServiceField = XposedHelpers.findField(anrHelper.getClass(), "mService");
-                                Object mService = mServiceField.get(anrHelper);
-                                if (mService == null) return null;
-                                Field mProcLockField = XposedHelpers.findField(mService.getClass(), "mProcLock");
-                                if (mProcLockField.get(mService) == null) return null;
-                                Object packageList;
-                                synchronized (mProcLockField.get(mService)) {
-                                    packageList = XposedHelpers.callMethod(proc, "getPackageListWithVersionCode");
-                                    boolean isPersistent = (boolean) XposedHelpers.callMethod(proc, "isPersistent");
-                                    if (!isPersistent) {
-                                        XposedHelpers.callMethod(errState, "setNotResponding", false);
-                                    }
-                                }
-                                if (packageList == null) return null;
-                                Field mPackageWatchdogField = XposedHelpers.findField(mService.getClass(), "mPackageWatchdog");
-                                Object mPackageWatchdog = mPackageWatchdogField.get(mService);
-                                int FAILURE_REASON_APP_NOT_RESPONDING = XposedHelpers.getStaticIntField(mPackageWatchdog.getClass(), "FAILURE_REASON_APP_NOT_RESPONDING");
-                                XposedHelpers.callMethod(mPackageWatchdog, "onPackageFailure", packageList, FAILURE_REASON_APP_NOT_RESPONDING);
-                                XposedBridge.log("NoANR Hook success");
-                            } catch (Exception e) {
-                                XposedBridge.log("NoANR -> " + e.getMessage());
-                            }
+                            log("Hook success");
                             return null;
                         }
                     });
+            XposedHelpers.findAndHookMethod("com.android.server.am.BroadcastQueue", lpparam.classLoader,
+                    "processNextBroadcastLocked",
+                    boolean.class, boolean.class,
+                    new XC_MethodHook() {
+                        @Override
+                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                            super.beforeHookedMethod(param);
+                            try {
+                                Object broadcastQueue = param.thisObject;
+                                Object mService = XposedHelpers.getObjectField(broadcastQueue, "mService");
+                                Object mServices = XposedHelpers.getObjectField(mService, "mServices");
+                                Object mParallelBroadcasts = XposedHelpers.getObjectField(broadcastQueue, "mParallelBroadcasts");
+                                removeList(mService, mServices, mParallelBroadcasts);
+                                Object mDispatcher = XposedHelpers.getObjectField(broadcastQueue, "mDispatcher");
+                                Object mOrderedBroadcasts = XposedHelpers.getObjectField(mDispatcher, "mOrderedBroadcasts");
+                                removeList(mService, mServices, mOrderedBroadcasts);
+                                Object mAlarmBroadcasts = XposedHelpers.getObjectField(mDispatcher, "mAlarmBroadcasts");
+                                removeList(mService, mServices, mAlarmBroadcasts);
+                                Object mDeferredBroadcasts = XposedHelpers.getObjectField(mDispatcher, "mDeferredBroadcasts");
+                                removeList(mService, mServices, mDeferredBroadcasts);
+                                Object mCurrentBroadcast = XposedHelpers.getObjectField(mDispatcher, "mCurrentBroadcast");
+                                remove(mService, mServices, mCurrentBroadcast);
+                            } catch (Exception e) {
+                                log("Exception clean broadcast " + e.getMessage());
+                                }
+                            }
+
+                        public List<?> toList(Object object) {
+                            if (object == null) return null;
+                            return (List<?>) object;
+                        }
+
+                        public void removeList(Object activityManagerService, Object activeServices, Object broadcastRecords) {
+                            List<?> broadcastRecordList = toList(broadcastRecords);
+                            if (broadcastRecordList != null && broadcastRecordList.size() > 0) {
+                                for (Object broadcastRecord : broadcastRecordList) {
+                                    remove(activityManagerService, activeServices, broadcastRecord);
+                                }
+                            }
+                        }
+
+                        public void remove(Object activityManagerService, Object activeServices, Object broadcastRecord) {
+                            List<?> receivers = toList(XposedHelpers.getObjectField(broadcastRecord, "receivers"));
+                            if (receivers != null && receivers.size() > 0) {
+                                for (Object receiver : receivers) {
+                                    Class<?> ResolveInfo = XposedHelpers.findClass("android.content.pm.ResolveInfo", lpparam.classLoader);
+                                    if (!ResolveInfo.isAssignableFrom(receiver.getClass())) {
+                                        log("receiver is not instance of ResolveInfo");
+                                        continue;
+                                    }
+                                    Object resolveInfo = receiver;
+                                    Object activityInfo = XposedHelpers.getObjectField(resolveInfo, "activityInfo");
+                                    Object targetProcess = XposedHelpers.getObjectField(activityInfo, "processName");
+                                    Object applicationInfo = XposedHelpers.getObjectField(activityInfo, "applicationInfo");
+                                    int uid = XposedHelpers.getIntField(applicationInfo, "uid");
+                                    final int finalUid = uid;
+                                    final String finalPackageName = (String) targetProcess;
+                                    Object app = XposedHelpers.callMethod(activityManagerService, "getProcessRecordLocked", targetProcess, uid);
+                                    boolean appRestrictedAnyInBackground = (boolean) XposedHelpers.callMethod(activeServices, "appRestrictedAnyInBackground", finalUid, finalPackageName);
+                                    if (app != null && appRestrictedAnyInBackground) {
+                                        boolean cleanupDisabledPackageReceiversLocked = (boolean) XposedHelpers.callMethod(broadcastRecord, "cleanupDisabledPackageReceiversLocked", targetProcess, null, -1, true);
+                                        if (!cleanupDisabledPackageReceiversLocked) {
+                                            log("Clean " + targetProcess + " broadcast failed");
+                                        } else {
+                                            log("Clean " + targetProcess + " broadcast success");
+                                        }
+                                        continue;
+                                    }
+                                    if (app == null) {
+                                        log(targetProcess + " is not running");
+                                    }
+                                    if (app != null && !appRestrictedAnyInBackground) {
+                                        log(targetProcess + " is not restricted");
+                                    }
+                                }
+                            }
+                        }
+                    });
+
         }
     }
+
+    public void log(String str) {
+        XposedBridge.log(NO_ANR + " -> " + str);
+    }
+
+
 }
