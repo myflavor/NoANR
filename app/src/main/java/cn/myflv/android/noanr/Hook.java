@@ -80,19 +80,19 @@ public class Hook implements IXposedHookLoadPackage {
                                     log("packageManager is null");
                                 }
                                 Object mParallelBroadcasts = XposedHelpers.getObjectField(broadcastQueue, "mParallelBroadcasts");
-                                removeList(mService, mParallelBroadcasts, ResolveInfo, BroadcastFilter, packageManager);
+                                removeList(mService, mParallelBroadcasts, ResolveInfo, BroadcastFilter, packageManager, mServices);
                                 Object mPendingBroadcast = XposedHelpers.getObjectField(broadcastQueue, "mPendingBroadcast");
-                                remove(mService, mPendingBroadcast, ResolveInfo, BroadcastFilter, packageManager);
+                                remove(mService, mPendingBroadcast, ResolveInfo, BroadcastFilter, packageManager, mServices);
                                 Object mDispatcher = XposedHelpers.getObjectField(broadcastQueue, "mDispatcher");
                                 if (mDispatcher == null) return;
                                 Object mOrderedBroadcasts = XposedHelpers.getObjectField(mDispatcher, "mOrderedBroadcasts");
-                                removeList(mService, mOrderedBroadcasts, ResolveInfo, BroadcastFilter, packageManager);
+                                removeList(mService, mOrderedBroadcasts, ResolveInfo, BroadcastFilter, packageManager, mServices);
                                 Object mAlarmBroadcasts = XposedHelpers.getObjectField(mDispatcher, "mAlarmBroadcasts");
-                                removeDeferralList(mService, mAlarmBroadcasts, ResolveInfo, BroadcastFilter, packageManager);
+                                removeDeferralList(mService, mAlarmBroadcasts, ResolveInfo, BroadcastFilter, packageManager, mServices);
                                 Object mDeferredBroadcasts = XposedHelpers.getObjectField(mDispatcher, "mDeferredBroadcasts");
-                                removeDeferralList(mService, mDeferredBroadcasts, ResolveInfo, BroadcastFilter, packageManager);
+                                removeDeferralList(mService, mDeferredBroadcasts, ResolveInfo, BroadcastFilter, packageManager, mServices);
                                 Object mCurrentBroadcast = XposedHelpers.getObjectField(mDispatcher, "mCurrentBroadcast");
-                                remove(mService, mCurrentBroadcast, ResolveInfo, BroadcastFilter, packageManager);
+                                remove(mService, mCurrentBroadcast, ResolveInfo, BroadcastFilter, packageManager, mServices);
                             } catch (Exception e) {
                                 log("Exception clean broadcast " + e.getMessage());
                             }
@@ -120,27 +120,27 @@ public class Hook implements IXposedHookLoadPackage {
     }
 
 
-    public void removeDeferralList(Object activityManagerService, Object deferrals, Class<?> ResolveInfo, Class<?> BroadcastFilter, Object packageManager) {
+    public void removeDeferralList(Object activityManagerService, Object deferrals, Class<?> ResolveInfo, Class<?> BroadcastFilter, Object packageManager, Object activeServices) {
         List<?> deferralList = toList(deferrals);
         if (deferralList != null && deferralList.size() > 0) {
             for (Object deferral : deferralList) {
                 Object broadcastRecords = XposedHelpers.getObjectField(deferral, "broadcasts");
-                removeList(activityManagerService, broadcastRecords, ResolveInfo, BroadcastFilter, packageManager);
+                removeList(activityManagerService, broadcastRecords, ResolveInfo, BroadcastFilter, packageManager, activeServices);
             }
         }
     }
 
-    public void removeList(Object activityManagerService, Object broadcastRecords, Class<?> ResolveInfo, Class<?> BroadcastFilter, Object packageManager) {
+    public void removeList(Object activityManagerService, Object broadcastRecords, Class<?> ResolveInfo, Class<?> BroadcastFilter, Object packageManager, Object activeServices) {
         List<?> broadcastRecordList = toList(broadcastRecords);
         if (broadcastRecordList != null && broadcastRecordList.size() > 0) {
             for (Object broadcastRecord : broadcastRecordList) {
-                remove(activityManagerService, broadcastRecord, ResolveInfo, BroadcastFilter, packageManager);
+                remove(activityManagerService, broadcastRecord, ResolveInfo, BroadcastFilter, packageManager, activeServices);
             }
         }
     }
 
 
-    public void remove(Object activityManagerService, Object broadcastRecord, Class<?> ResolveInfo, Class<?> BroadcastFilter, Object packageManager) {
+    public void remove(Object activityManagerService, Object broadcastRecord, Class<?> ResolveInfo, Class<?> BroadcastFilter, Object packageManager, Object activeServices) {
         try {
             if (broadcastRecord == null) return;
             Object receiversList = XposedHelpers.getObjectField(broadcastRecord, "receivers");
@@ -184,8 +184,11 @@ public class Hook implements IXposedHookLoadPackage {
                         if (app != null) isRun = true;
                     }
                     if (packageName == null || uid == null || !isRun) continue;
+                    final int finalUid = uid;
+                    final String finalPackageName = packageName;
+                    boolean appRestrictedAnyInBackground = (boolean) XposedHelpers.callMethod(activeServices, "appRestrictedAnyInBackground", finalUid, finalPackageName);
                     boolean isOnDeviceIdleAllowlistLOSP = (boolean) XposedHelpers.callMethod(activityManagerService, "isOnDeviceIdleAllowlistLOSP", uid, false);
-                    if (!isOnDeviceIdleAllowlistLOSP) {
+                    if (!isOnDeviceIdleAllowlistLOSP && appRestrictedAnyInBackground) {
                         receivers.remove(i);
                         if (i < nextReceiver) {
                             nextReceiver--;
