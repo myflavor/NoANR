@@ -19,11 +19,85 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 public class Hook implements IXposedHookLoadPackage {
 
     private final static String NO_ANR = "NoANR";
+    private final static boolean DEBUG = false;
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         if (lpparam.packageName.equals("android")) {
-            log("Load success");
+            XposedBridge.log(NO_ANR + " Load success");
+            XposedHelpers.findAndHookMethod("com.android.server.am.BroadcastQueue", lpparam.classLoader, "deliverToRegisteredReceiverLocked",
+                    "com.android.server.am.BroadcastRecord",
+                    "com.android.server.am.BroadcastFilter", boolean.class, int.class,
+                    new XC_MethodHook() {
+                        @Override
+                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                            super.beforeHookedMethod(param);
+                            Object broadcastQueue = param.thisObject;
+                            Object[] args = param.args;
+                            Object filter = args[1];
+                            Object receiverList = XposedHelpers.getObjectField(filter, "receiverList");
+                            if (receiverList == null) return;
+                            Object app = XposedHelpers.getObjectField(receiverList, "app");
+                            if (app == null) return;
+                            Object applicationInfo = XposedHelpers.getObjectField(app, "info");
+                            if (applicationInfo == null) return;
+                            final Object packageName = XposedHelpers.getObjectField(applicationInfo, "packageName");
+                            if (packageName == null) return;
+                            Class<?> AppGlobals = XposedHelpers.findClass("android.app.AppGlobals", lpparam.classLoader);
+                            Object packageManager = XposedHelpers.callStaticMethod(AppGlobals, "getPackageManager");
+                            if (packageManager == null) {
+                                log("packageManager is null");
+                            }
+                            if (isSystem(packageManager, packageName)) return;
+                            Object activityManagerService = XposedHelpers.getObjectField(broadcastQueue, "mService");
+                            if (activityManagerService == null) return;
+                            Object activeServices = XposedHelpers.getObjectField(activityManagerService, "mServices");
+                            if (activeServices == null) return;
+                            final int uid = XposedHelpers.getIntField(applicationInfo, "uid");
+                            boolean appRestrictedAnyInBackground = (boolean) XposedHelpers.callMethod(activeServices, "appRestrictedAnyInBackground", uid, packageName);
+//                            boolean isOnDeviceIdleAllowlistLOSP = (boolean) XposedHelpers.callMethod(activityManagerService, "isOnDeviceIdleAllowlistLOSP", uid, false);
+//                            if (isOnDeviceIdleAllowlistLOSP) return;
+                            if (!appRestrictedAnyInBackground) return;
+                            XposedHelpers.setObjectField(receiverList, "app", null);
+                            log("Broadcast to " + packageName + " clean success");
+                        }
+
+                    }
+            );
+//            XposedHelpers.findAndHookConstructor("com.android.server.am.BroadcastRecord", lpparam.classLoader,
+//                    "com.android.server.am.BroadcastQueue", "android.content.Intent", "com.android.server.am.ProcessRecord", String.class,
+//                    String.class, int.class, int.class,
+//                    boolean.class, String.class,
+//                    String[].class, String[].class, int.class,
+//                    "android.app.BroadcastOptions", List.class, "android.content.IIntentReceiver", int.class,
+//                    String.class, "android.os.Bundle", boolean.class, boolean.class,
+//                    boolean.class, int.class, boolean.class,
+//                    "android.os.IBinder", boolean.class, new XC_MethodHook() {
+//                        @Override
+//                        protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+//                            super.afterHookedMethod(param);
+//                            try {
+//                                Object broadcastRecord = param.thisObject;
+//                                Object broadcastQueue = XposedHelpers.getObjectField(broadcastRecord, "queue");
+//                                Object mService = XposedHelpers.getObjectField(broadcastQueue, "mService");
+//                                if (mService == null) return;
+//                                Object mServices = XposedHelpers.getObjectField(mService, "mServices");
+//                                if (mServices == null) return;
+//                                Class<?> ResolveInfo = XposedHelpers.findClass("android.content.pm.ResolveInfo", lpparam.classLoader);
+//                                Class<?> BroadcastFilter = XposedHelpers.findClass("com.android.server.am.BroadcastFilter", lpparam.classLoader);
+//                                Class<?> AppGlobals = XposedHelpers.findClass("android.app.AppGlobals", lpparam.classLoader);
+//                                Object packageManager = XposedHelpers.callStaticMethod(AppGlobals, "getPackageManager");
+//                                if (packageManager == null) {
+//                                    log("packageManager is null");
+//                                }
+//                                remove(mService, broadcastRecord, ResolveInfo, BroadcastFilter, packageManager, mServices);
+//                            } catch (Exception e) {
+//                                log("Exception handle broadcast " + e.getMessage());
+//                            }
+//
+//                        }
+//                    });
+
 //            XposedHelpers.findAndHookMethod("com.android.server.am.BroadcastQueue", lpparam.classLoader,
 //                    "broadcastTimeoutLocked",
 //                    boolean.class, new XC_MethodHook() {
@@ -45,60 +119,64 @@ public class Hook implements IXposedHookLoadPackage {
 //
 //
 //                    });
-//            XposedHelpers.findAndHookMethod("com.android.server.am.AnrHelper", lpparam.classLoader, "appNotResponding",
-//                    "com.android.server.am.ProcessRecord",
-//                    String.class,
-//                    "android.content.pm.ApplicationInfo",
-//                    String.class,
-//                    "com.android.server.wm.WindowProcessController",
-//                    boolean.class,
-//                    String.class, new XC_MethodReplacement() {
-//                        @Override
-//                        protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
-//                            log("Hook success");
-//                            return null;
-//                        }
-//                    });
-            XposedHelpers.findAndHookMethod("com.android.server.am.BroadcastQueue", lpparam.classLoader,
-                    "processNextBroadcastLocked",
-                    boolean.class, boolean.class,
-                    new XC_MethodHook() {
+            XposedHelpers.findAndHookMethod("com.android.server.am.AnrHelper", lpparam.classLoader, "appNotResponding",
+                    "com.android.server.am.ProcessRecord",
+                    String.class,
+                    "android.content.pm.ApplicationInfo",
+                    String.class,
+                    "com.android.server.wm.WindowProcessController",
+                    boolean.class,
+                    String.class, new XC_MethodReplacement() {
                         @Override
-                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                            super.beforeHookedMethod(param);
-                            try {
-                                Object broadcastQueue = param.thisObject;
-                                Object mService = XposedHelpers.getObjectField(broadcastQueue, "mService");
-                                if (mService == null) return;
-                                Object mServices = XposedHelpers.getObjectField(mService, "mServices");
-                                if (mServices == null) return;
-                                Class<?> ResolveInfo = XposedHelpers.findClass("android.content.pm.ResolveInfo", lpparam.classLoader);
-                                Class<?> BroadcastFilter = XposedHelpers.findClass("com.android.server.am.BroadcastFilter", lpparam.classLoader);
-                                Class<?> AppGlobals = XposedHelpers.findClass("android.app.AppGlobals", lpparam.classLoader);
-                                Object packageManager = XposedHelpers.callStaticMethod(AppGlobals, "getPackageManager");
-                                if (packageManager == null) {
-                                    log("packageManager is null");
-                                }
-                                Object mParallelBroadcasts = XposedHelpers.getObjectField(broadcastQueue, "mParallelBroadcasts");
-                                removeList(mService, mParallelBroadcasts, ResolveInfo, BroadcastFilter, packageManager, mServices);
-                                Object mPendingBroadcast = XposedHelpers.getObjectField(broadcastQueue, "mPendingBroadcast");
-                                remove(mService, mPendingBroadcast, ResolveInfo, BroadcastFilter, packageManager, mServices);
-                                Object mDispatcher = XposedHelpers.getObjectField(broadcastQueue, "mDispatcher");
-                                if (mDispatcher == null) return;
-                                Object mOrderedBroadcasts = XposedHelpers.getObjectField(mDispatcher, "mOrderedBroadcasts");
-                                removeList(mService, mOrderedBroadcasts, ResolveInfo, BroadcastFilter, packageManager, mServices);
-                                Object mAlarmBroadcasts = XposedHelpers.getObjectField(mDispatcher, "mAlarmBroadcasts");
-                                removeDeferralList(mService, mAlarmBroadcasts, ResolveInfo, BroadcastFilter, packageManager, mServices);
-                                Object mDeferredBroadcasts = XposedHelpers.getObjectField(mDispatcher, "mDeferredBroadcasts");
-                                removeDeferralList(mService, mDeferredBroadcasts, ResolveInfo, BroadcastFilter, packageManager, mServices);
-                                Object mCurrentBroadcast = XposedHelpers.getObjectField(mDispatcher, "mCurrentBroadcast");
-                                remove(mService, mCurrentBroadcast, ResolveInfo, BroadcastFilter, packageManager, mServices);
-                            } catch (Exception e) {
-                                log("Exception clean broadcast " + e.getMessage());
-                            }
+                        protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
+                            Object[] args = param.args;
+                            Object processRecord = args[0];
+                            Object processName = XposedHelpers.getObjectField(processRecord, "processName");
+                            if (processName == null) processName = "unknown";
+                            log("Keep process " + processName + " success");
+                            return null;
                         }
-
                     });
+//            XposedHelpers.findAndHookMethod("com.android.server.am.BroadcastQueue", lpparam.classLoader,
+//                    "processNextBroadcastLocked",
+//                    boolean.class, boolean.class,
+//                    new XC_MethodHook() {
+//                        @Override
+//                        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+//                            super.beforeHookedMethod(param);
+//                            try {
+//                                Object broadcastQueue = param.thisObject;
+//                                Object mService = XposedHelpers.getObjectField(broadcastQueue, "mService");
+//                                if (mService == null) return;
+//                                Object mServices = XposedHelpers.getObjectField(mService, "mServices");
+//                                if (mServices == null) return;
+//                                Class<?> ResolveInfo = XposedHelpers.findClass("android.content.pm.ResolveInfo", lpparam.classLoader);
+//                                Class<?> BroadcastFilter = XposedHelpers.findClass("com.android.server.am.BroadcastFilter", lpparam.classLoader);
+//                                Class<?> AppGlobals = XposedHelpers.findClass("android.app.AppGlobals", lpparam.classLoader);
+//                                Object packageManager = XposedHelpers.callStaticMethod(AppGlobals, "getPackageManager");
+//                                if (packageManager == null) {
+//                                    log("packageManager is null");
+//                                }
+//                                Object mParallelBroadcasts = XposedHelpers.getObjectField(broadcastQueue, "mParallelBroadcasts");
+//                                removeList(mService, mParallelBroadcasts, ResolveInfo, BroadcastFilter, packageManager, mServices);
+//                                Object mPendingBroadcast = XposedHelpers.getObjectField(broadcastQueue, "mPendingBroadcast");
+//                                remove(mService, mPendingBroadcast, ResolveInfo, BroadcastFilter, packageManager, mServices);
+//                                Object mDispatcher = XposedHelpers.getObjectField(broadcastQueue, "mDispatcher");
+//                                if (mDispatcher == null) return;
+//                                Object mOrderedBroadcasts = XposedHelpers.getObjectField(mDispatcher, "mOrderedBroadcasts");
+//                                removeList(mService, mOrderedBroadcasts, ResolveInfo, BroadcastFilter, packageManager, mServices);
+//                                Object mAlarmBroadcasts = XposedHelpers.getObjectField(mDispatcher, "mAlarmBroadcasts");
+//                                removeDeferralList(mService, mAlarmBroadcasts, ResolveInfo, BroadcastFilter, packageManager, mServices);
+//                                Object mDeferredBroadcasts = XposedHelpers.getObjectField(mDispatcher, "mDeferredBroadcasts");
+//                                removeDeferralList(mService, mDeferredBroadcasts, ResolveInfo, BroadcastFilter, packageManager, mServices);
+//                                Object mCurrentBroadcast = XposedHelpers.getObjectField(mDispatcher, "mCurrentBroadcast");
+//                                remove(mService, mCurrentBroadcast, ResolveInfo, BroadcastFilter, packageManager, mServices);
+//                            } catch (Exception e) {
+//                                log("Exception clean broadcast " + e.getMessage());
+//                            }
+//                        }
+//
+//                    });
 
         }
     }
@@ -206,7 +284,8 @@ public class Hook implements IXposedHookLoadPackage {
 
 
     public void log(String str) {
-        XposedBridge.log(NO_ANR + " -> " + str);
+        if (DEBUG) XposedBridge.log(NO_ANR + " -> " + str);
     }
+
 
 }
