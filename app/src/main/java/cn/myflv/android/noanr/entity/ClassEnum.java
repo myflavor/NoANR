@@ -14,4 +14,6 @@ public class ClassEnum {
     public final static String ApplicationInfo = "android.content.pm.ApplicationInfo";
     public final static String WindowProcessController = "com.android.server.wm.WindowProcessController";
     public final static String AnrRecord = AnrHelper + "$AnrRecord";
+    public final static String AppErrors = "com.android.server.am.AppErrors";
+    public final static String ActivityRecord = "com.android.server.am.ActivityRecord";
 }

@@ -100,16 +100,28 @@ public class Hook implements IXposedHookLoadPackage {
                                 return null;
                             }
                         });
-            } else {
-                XposedBridge.log("NoANR -> Replace appNotResponding");
+            } else if (Build.VERSION.SDK_INT==Build.VERSION_CODES.Q){
+                XposedBridge.log("NoANR -> Android Q");
                 XposedHelpers.findAndHookMethod(ClassEnum.ProcessRecord, loadPackageParam.classLoader, MethodEnum.appNotResponding,
-                        String.class, ClassEnum.ApplicationInfo, String.class, ClassEnum.WindowProcessController, Boolean.class, String.class, new XC_MethodReplacement() {
+                        String.class, ClassEnum.ApplicationInfo, String.class, ClassEnum.WindowProcessController, boolean.class, String.class, new XC_MethodReplacement() {
                             @Override
                             protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
                                 return null;
                             }
                         });
 
+            }else {
+                XposedBridge.log("NoANR -> Android N-P");
+                XposedHelpers.findAndHookMethod(ClassEnum.AppErrors, loadPackageParam.classLoader, MethodEnum.appNotResponding,
+                        ClassEnum.ProcessRecord, ClassEnum.ActivityRecord, ClassEnum.ActivityRecord, boolean.class, String.class,
+                        new XC_MethodReplacement() {
+                            @Override
+                            protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
+                                return null;
+                            }
+                        }
+
+                );
             }
 
         }
