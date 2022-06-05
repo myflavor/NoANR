@@ -1,5 +1,7 @@
 package cn.myflv.android.noanr.utils;
 
+import android.os.Build;
+
 import cn.myflv.android.noanr.entity.FieldEnum;
 import cn.myflv.android.noanr.entity.MethodEnum;
 import de.robv.android.xposed.XposedHelpers;
@@ -35,8 +37,22 @@ public class AppUtil {
     }
 
 
-    public static Object getAppOpsManager(Object activityManagerService) {
-        return XposedHelpers.callMethod(activityManagerService, MethodEnum.getAppOpsManager);
+    public static Object getAppOpsManager(Object activityManagerService, ClassLoader classLoader) {
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.Q) {
+            return XposedHelpers.callMethod(activityManagerService, MethodEnum.getAppOpsManager);
+        }
+        Object context = getContext(activityManagerService);
+        Class<?> AppOpsManager = ClassUtil.findAppOpsManager(classLoader);
+        return getSystemService(context, AppOpsManager);
+    }
+
+
+    public static Object getContext(Object activityManagerService) {
+        return XposedHelpers.getObjectField(activityManagerService, FieldEnum.mContext);
+    }
+
+    public static Object getSystemService(Object context, Class<?> clazz) {
+        return XposedHelpers.callMethod(context, MethodEnum.getSystemService, clazz);
     }
 
     public static int ACTIVITY_RESUMED(ClassLoader classLoader) {

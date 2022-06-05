@@ -12,4 +12,5 @@ public class MethodEnum {
     public final static String appNotResponding = "appNotResponding";
     public final static String startAnrConsumerIfNeeded = "startAnrConsumerIfNeeded";
     public final static String getApplicationInfo = "getApplicationInfo";
+    public final static String getSystemService = "getSystemService";
 }

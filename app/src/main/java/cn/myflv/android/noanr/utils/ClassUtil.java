@@ -7,4 +7,8 @@ public class ClassUtil {
     public static Class<?> findAppGlobals(ClassLoader classLoader) {
         return XposedHelpers.findClass(ClassEnum.AppGlobals, classLoader);
     }
+
+    public static Class<?> findAppOpsManager(ClassLoader classLoader) {
+        return XposedHelpers.findClass(ClassEnum.AppOpsManager, classLoader);
+    }
 }

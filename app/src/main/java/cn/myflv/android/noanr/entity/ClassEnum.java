@@ -8,6 +8,7 @@ public class ClassEnum {
     public final static String BroadcastRecord = "com.android.server.am.BroadcastRecord";
     public final static String BroadcastFilter = "com.android.server.am.BroadcastFilter";
     public final static String AppGlobals = "android.app.AppGlobals";
+    public final static String AppOpsManager = "android.app.AppOpsManager";
     public final static String AnrHelper = "com.android.server.am.AnrHelper";
     public final static String ProcessRecord = "com.android.server.am.ProcessRecord";
     public final static String ApplicationInfo = "android.content.pm.ApplicationInfo";

@@ -1,5 +1,6 @@
 package cn.myflv.android.noanr;
 
+import android.os.Build;
 import android.util.Log;
 
 import java.io.BufferedReader;
@@ -58,7 +59,7 @@ public class Hook implements IXposedHookLoadPackage {
                             Object activeServices = AppUtil.getActiveServices(activityManagerService);
                             if (activeServices == null) return;
                             int uid = AppUtil.getUid(applicationInfo);
-                            Object appOpsManager = AppUtil.getAppOpsManager(activityManagerService);
+                            Object appOpsManager = AppUtil.getAppOpsManager(activityManagerService, classLoader);
                             if (appOpsManager == null) return;
                             boolean wakeLockIgnore = AppOpsUtil.checkOpIgnore(appOpsManager, AppOpsUtil.OP_WAKE_LOCK, uid, packageName, classLoader);
                             log(packageName + " -> " + wakeLockIgnore);
@@ -69,35 +70,46 @@ public class Hook implements IXposedHookLoadPackage {
 
                     }
             );
-            XposedHelpers.findAndHookMethod(ClassEnum.AnrHelper, classLoader, MethodEnum.appNotResponding,
-                    ClassEnum.ProcessRecord,
-                    String.class,
-                    ClassEnum.ApplicationInfo,
-                    String.class,
-                    ClassEnum.WindowProcessController,
-                    boolean.class,
-                    String.class, new XC_MethodReplacement() {
-                        @Override
-                        protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
-                            Object[] args = param.args;
-                            Object anrHelper = param.thisObject;
-                            Object processRecord = args[0];
-                            Object applicationInfo = ProcessUtil.getApplicationInfo(processRecord);
-                            boolean isSystem = AppUtil.isSystem(applicationInfo);
-                            if (isSystem) {
-                                synchronized (AnrUtil.mAnrRecords(anrHelper)) {
-                                    Object anrRecord = AnrUtil.newInstance(classLoader, args);
-                                    AnrUtil.mAnrRecords(anrHelper).add(anrRecord);
+            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.Q) {
+                XposedHelpers.findAndHookMethod(ClassEnum.AnrHelper, classLoader, MethodEnum.appNotResponding,
+                        ClassEnum.ProcessRecord,
+                        String.class,
+                        ClassEnum.ApplicationInfo,
+                        String.class,
+                        ClassEnum.WindowProcessController,
+                        boolean.class,
+                        String.class, new XC_MethodReplacement() {
+                            @Override
+                            protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
+                                Object[] args = param.args;
+                                Object anrHelper = param.thisObject;
+                                Object processRecord = args[0];
+                                Object applicationInfo = ProcessUtil.getApplicationInfo(processRecord);
+                                boolean isSystem = AppUtil.isSystem(applicationInfo);
+                                if (isSystem) {
+                                    synchronized (AnrUtil.mAnrRecords(anrHelper)) {
+                                        Object anrRecord = AnrUtil.newInstance(classLoader, args);
+                                        AnrUtil.mAnrRecords(anrHelper).add(anrRecord);
+                                    }
+                                    AnrUtil.startAnrConsumerIfNeeded(anrHelper);
+                                } else {
+                                    Object processName = XposedHelpers.getObjectField(processRecord, "processName");
+                                    if (processName == null) processName = "unknown";
+                                    log("Keep process " + processName + " success");
                                 }
-                                AnrUtil.startAnrConsumerIfNeeded(anrHelper);
-                            } else {
-                                Object processName = XposedHelpers.getObjectField(processRecord, "processName");
-                                if (processName == null) processName = "unknown";
-                                log("Keep process " + processName + " success");
+                                return null;
                             }
-                            return null;
-                        }
-                    });
+                        });
+            } else {
+                XposedHelpers.findAndHookMethod(ClassEnum.ProcessRecord, loadPackageParam.classLoader, MethodEnum.appNotResponding,
+                        String.class, ClassEnum.ApplicationInfo, String.class, ClassEnum.WindowProcessController, Boolean.class, String.class, new XC_MethodReplacement() {
+                            @Override
+                            protected Object replaceHookedMethod(MethodHookParam param) throws Throwable {
+                                return null;
+                            }
+                        });
+
+            }
 
         }
     }
