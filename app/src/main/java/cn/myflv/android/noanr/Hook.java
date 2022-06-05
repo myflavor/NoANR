@@ -101,6 +101,7 @@ public class Hook implements IXposedHookLoadPackage {
                             }
                         });
             } else {
+                XposedBridge.log("NoANR -> Replace appNotResponding");
                 XposedHelpers.findAndHookMethod(ClassEnum.ProcessRecord, loadPackageParam.classLoader, MethodEnum.appNotResponding,
                         String.class, ClassEnum.ApplicationInfo, String.class, ClassEnum.WindowProcessController, Boolean.class, String.class, new XC_MethodReplacement() {
                             @Override
