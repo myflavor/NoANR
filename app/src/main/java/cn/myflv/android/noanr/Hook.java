@@ -71,6 +71,7 @@ public class Hook implements IXposedHookLoadPackage {
                     }
             );
             if (Build.VERSION.SDK_INT > Build.VERSION_CODES.Q) {
+                XposedBridge.log(NO_ANR + " Auto keep process");
                 XposedHelpers.findAndHookMethod(ClassEnum.AnrHelper, classLoader, MethodEnum.appNotResponding,
                         ClassEnum.ProcessRecord,
                         String.class,
@@ -100,8 +101,9 @@ public class Hook implements IXposedHookLoadPackage {
                                 return null;
                             }
                         });
-            } else if (Build.VERSION.SDK_INT==Build.VERSION_CODES.Q){
-                XposedBridge.log("NoANR -> Android Q");
+            } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+                XposedBridge.log(NO_ANR + " -> Android Q");
+                XposedBridge.log(NO_ANR + " Force keep process");
                 XposedHelpers.findAndHookMethod(ClassEnum.ProcessRecord, loadPackageParam.classLoader, MethodEnum.appNotResponding,
                         String.class, ClassEnum.ApplicationInfo, String.class, ClassEnum.WindowProcessController, boolean.class, String.class, new XC_MethodReplacement() {
                             @Override
@@ -110,8 +112,9 @@ public class Hook implements IXposedHookLoadPackage {
                             }
                         });
 
-            }else {
+            } else {
                 XposedBridge.log("NoANR -> Android N-P");
+                XposedBridge.log(NO_ANR + " Force keep process");
                 XposedHelpers.findAndHookMethod(ClassEnum.AppErrors, loadPackageParam.classLoader, MethodEnum.appNotResponding,
                         ClassEnum.ProcessRecord, ClassEnum.ActivityRecord, ClassEnum.ActivityRecord, boolean.class, String.class,
                         new XC_MethodReplacement() {
