@@ -1,5 +1,7 @@
 package cn.myflv.android.noanr.utils;
 
+import android.os.Build;
+
 import java.util.List;
 
 import cn.myflv.android.noanr.entity.ClassEnum;
@@ -23,14 +25,17 @@ public class AnrUtil {
     }
 
     public static void resetNotResponding(Object processRecord) {
-        Object activityManagerService = ProcessUtil.getActivityManagerService(processRecord);
-        if (activityManagerService == null) return;
-        if (AppUtil.getActivityManagerGlobalLock(activityManagerService) == null) {
-            return;
-        }
-        synchronized (AppUtil.getActivityManagerGlobalLock(activityManagerService)) {
-            Object mErrorState = XposedHelpers.getObjectField(processRecord, FieldEnum.mErrorState);
-            XposedHelpers.callMethod(mErrorState, MethodEnum.setNotResponding, false);
+        if (Build.VERSION.SDK_INT==Build.VERSION_CODES.S){
+            Object activityManagerService = ProcessUtil.getActivityManagerService(processRecord);
+            if (activityManagerService == null) return;
+            if (AppUtil.getActivityManagerGlobalLock(activityManagerService) == null) {
+                return;
+            }
+            synchronized (AppUtil.getActivityManagerGlobalLock(activityManagerService)) {
+                Object mErrorState = XposedHelpers.getObjectField(processRecord, FieldEnum.mErrorState);
+                if (mErrorState == null) return;
+                XposedHelpers.callMethod(mErrorState, MethodEnum.setNotResponding, false);
+            }
         }
     }
 
