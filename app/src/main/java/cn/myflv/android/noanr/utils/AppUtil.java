@@ -86,4 +86,8 @@ public class AppUtil {
     public static int getUid(Object applicationInfo) {
         return XposedHelpers.getIntField(applicationInfo, FieldEnum.uid);
     }
+
+    public static Object getActivityManagerGlobalLock(Object activityManagerService){
+        return XposedHelpers.getObjectField(activityManagerService,MethodEnum.mProcLock);
+    }
 }

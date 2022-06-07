@@ -94,6 +94,7 @@ public class Hook implements IXposedHookLoadPackage {
                                     }
                                     AnrUtil.startAnrConsumerIfNeeded(anrHelper);
                                 } else {
+                                    AnrUtil.resetNotResponding(processRecord);
                                     Object processName = XposedHelpers.getObjectField(processRecord, "processName");
                                     if (processName == null) processName = "unknown";
                                     log("Keep process " + processName + " success");

@@ -60,4 +60,8 @@ public class ProcessUtil {
         return XposedHelpers.getIntField(processRecord, FieldEnum.pid);
     }
 
+    public static Object getActivityManagerService(Object processRecord){
+        return XposedHelpers.getObjectField(processRecord,FieldEnum.mService);
+    }
+
 }

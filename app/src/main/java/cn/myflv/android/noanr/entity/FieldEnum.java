@@ -15,5 +15,6 @@ public class FieldEnum {
     public final static String receiverList = "receiverList";
     public final static String app = "app";
     public final static String mAnrRecords = "mAnrRecords";
-    public final static String mContext="mContext";
+    public final static String mContext = "mContext";
+    public final static String mErrorState = "mErrorState";
 }
