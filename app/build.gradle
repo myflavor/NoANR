@@ -9,7 +9,7 @@ android {
         applicationId "cn.myflv.android.noanr"
         minSdk 23
         targetSdk 32
-        versionCode 7
+        versionCode 10
         versionName "2.4-alpha"
 
     }

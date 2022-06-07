@@ -25,9 +25,9 @@ public class AnrUtil {
     }
 
     public static void resetNotResponding(Object processRecord) {
-        if (Build.VERSION.SDK_INT==Build.VERSION_CODES.S){
-            Object activityManagerService = ProcessUtil.getActivityManagerService(processRecord);
-            if (activityManagerService == null) return;
+        Object activityManagerService = ProcessUtil.getActivityManagerService(processRecord);
+        if (activityManagerService == null) return;
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.S) {
             if (AppUtil.getActivityManagerGlobalLock(activityManagerService) == null) {
                 return;
             }
@@ -36,6 +36,11 @@ public class AnrUtil {
                 if (mErrorState == null) return;
                 XposedHelpers.callMethod(mErrorState, MethodEnum.setNotResponding, false);
             }
+        } else if (Build.VERSION.SDK_INT == Build.VERSION_CODES.R) {
+            synchronized (ProcessUtil.getActivityManagerService(processRecord)) {
+                XposedHelpers.callMethod(processRecord, MethodEnum.setNotResponding, false);
+            }
+
         }
     }
 
