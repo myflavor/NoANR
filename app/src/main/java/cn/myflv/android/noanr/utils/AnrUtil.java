@@ -22,9 +22,13 @@ public class AnrUtil {
         XposedHelpers.callMethod(anrHelper, MethodEnum.startAnrConsumerIfNeeded);
     }
 
-    public static void resetNotResponding(Object processRecord){
+    public static void resetNotResponding(Object processRecord) {
         Object activityManagerService = ProcessUtil.getActivityManagerService(processRecord);
-        synchronized (AppUtil.getActivityManagerGlobalLock(activityManagerService)){
+        if (activityManagerService == null) return;
+        if (AppUtil.getActivityManagerGlobalLock(activityManagerService) == null) {
+            return;
+        }
+        synchronized (AppUtil.getActivityManagerGlobalLock(activityManagerService)) {
             Object mErrorState = XposedHelpers.getObjectField(processRecord, FieldEnum.mErrorState);
             XposedHelpers.callMethod(mErrorState, MethodEnum.setNotResponding, false);
         }

@@ -85,7 +85,9 @@ public class Hook implements IXposedHookLoadPackage {
                                 Object[] args = param.args;
                                 Object anrHelper = param.thisObject;
                                 Object processRecord = args[0];
+                                if (processRecord == null) return null;
                                 Object applicationInfo = ProcessUtil.getApplicationInfo(processRecord);
+                                if (applicationInfo == null) return null;
                                 boolean isSystem = AppUtil.isSystem(applicationInfo);
                                 if (isSystem) {
                                     synchronized (AnrUtil.mAnrRecords(anrHelper)) {
